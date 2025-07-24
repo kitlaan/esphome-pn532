@@ -185,8 +185,10 @@ void PN532::loop() {
     bool same_uid = true;
     for (size_t i = 0; i < nfcid.size(); i++)
       same_uid &= nfcid[i] == this->current_uid_[i];
-    if (same_uid)
+    if (same_uid) {
+      this->turn_off_rf_();
       return;
+    }
   }
 
   this->current_uid_ = nfcid;
