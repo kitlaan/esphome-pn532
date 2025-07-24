@@ -144,6 +144,7 @@ void PN532::loop() {
     static int count = 0;
     ESP_LOGV(TAG, "loop %d timeout", count);
     if (++count <= 2) {
+      this->turn_off_rf_();
       ESP_LOGV(TAG, "ignoring timeout");
       return;
     }
