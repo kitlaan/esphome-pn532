@@ -98,7 +98,7 @@ bool PN532::auth_mifare_classic_block_(nfc::NfcTagUid &uid, uint8_t block_num, u
 
   std::vector<uint8_t> response;
   if (!this->read_response(PN532_COMMAND_INDATAEXCHANGE, response) || response[0] != 0x00) {
-    ESP_LOGE(TAG, "Authentication failed - Block 0x%02x", block_num);
+    ESP_LOGD(TAG, "Authentication failed - Block 0x%02x", block_num);
     return false;
   }
 
