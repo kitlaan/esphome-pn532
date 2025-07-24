@@ -140,6 +140,7 @@ void PN532::loop() {
     this->send_ack_();  // abort still running InListPassiveTarget
   }
 
+#if 0
   if (ready == TIMEOUT) {
     static int count = 0;
     ESP_LOGV(TAG, "loop %d timeout", count);
@@ -151,6 +152,7 @@ void PN532::loop() {
     count = 0;
     ESP_LOGV(TAG, "treating timeout as failure");
   }
+#endif
 
   this->requested_read_ = false;
 
@@ -197,8 +199,12 @@ void PN532::loop() {
     bool same_uid = true;
     for (size_t i = 0; i < nfcid.size(); i++)
       same_uid &= nfcid[i] == this->current_uid_[i];
-    if (same_uid)
+    if (same_uid) {
+      ESP_LOGV(TAG, "same tag!");
+      this->turn_off_rf_();
+      // TODO: do we need to do something?
       return;
+    }
   }
 
   this->current_uid_ = nfcid;
