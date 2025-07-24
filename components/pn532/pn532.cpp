@@ -140,6 +140,16 @@ void PN532::loop() {
     this->send_ack_();  // abort still running InListPassiveTarget
   }
 
+  if (ready == TIMEOUT) {
+    static int count = 0;
+    ESP_LOGV(TAG, "loop %d timeout", count);
+    if (++count <= 2) {
+      ESP_LOGV(TAG, "ignoring timeout");
+        return;
+    }
+    ESP_LOGV(TAG, "treating timeout as failure");
+  }
+
   this->requested_read_ = false;
 
   if (!success) {
