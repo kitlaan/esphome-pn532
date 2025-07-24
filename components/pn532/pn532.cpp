@@ -145,8 +145,9 @@ void PN532::loop() {
     ESP_LOGV(TAG, "loop %d timeout", count);
     if (++count <= 2) {
       ESP_LOGV(TAG, "ignoring timeout");
-        return;
+      return;
     }
+    count = 0;
     ESP_LOGV(TAG, "treating timeout as failure");
   }
 
