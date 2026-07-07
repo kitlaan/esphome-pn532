@@ -1,0 +1,35 @@
+# Tag every new state of main as a pinnable release <esphome-ver>-<rev> so
+# device configs can pin `github://.../<repo>@<ver>-<rev>` and never move until
+# you bump the ref. This covers pushes NOT made by the sync workflow — i.e. your
+# own PR merges / manual pushes. (The sync workflow tags itself, because a push
+# it makes with GITHUB_TOKEN does not trigger this on-push workflow.)
+name: Auto-tag main
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: auto-tag
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Tag release
+        run: ./scripts/tag-release.sh --push   # idempotent: no-op if HEAD already tagged

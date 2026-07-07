@@ -1,0 +1,41 @@
+# Build-check pull requests into main: compile the merge result with the same
+# Docker build gate the sync uses, pinned to the esphome release main is based
+# on. Make this a required status check in branch protection to block merges
+# that don't compile. This is the review gate for your own development changes;
+# the esphome sync path doesn't use PRs.
+name: PR build check
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (PR merge result)
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0        # need the base sync commit to read the esphome version
+
+      - name: Determine esphome version
+        id: ver
+        run: |
+          ver=$(git log --grep='^Sync to esphome' -n1 --pretty=%s \
+            | sed -nE 's/^Sync to esphome ([^ ]+).*/\1/p')
+          [ -n "$ver" ] || { echo "could not determine esphome version from history"; exit 1; }
+          echo "ver=$ver" >> "$GITHUB_OUTPUT"
+
+      - name: Cache esphome toolchain
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/esphome-pn532
+          key: esphome-toolchain-${{ steps.ver.outputs.ver }}
+          restore-keys: |
+            esphome-toolchain-
+
+      - name: Build gate
+        run: ./scripts/build-gate.sh "${{ steps.ver.outputs.ver }}"

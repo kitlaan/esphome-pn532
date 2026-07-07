@@ -1,0 +1,56 @@
+# Stripped-down config used as the build gate by scripts/sync-upstream.sh.
+#
+# It points external_components at the LOCAL working tree (not github://...) so
+# that `esphome compile` verifies the freshly-rebased code rather than whatever
+# is currently published. It keeps only what's needed to compile the pn532_spi
+# component and its on_tag / on_tag_removed automation paths.
+esphome:
+  name: pn532-build-test
+
+esp32:
+  board: esp32-c3-devkitm-1
+  framework:
+    type: esp-idf
+
+external_components:
+  - source:
+      type: local
+      # esphome expects the directory that CONTAINS `components/`; this file
+      # lives in tests/, so `..` is the repo root.
+      path: ..
+
+logger:
+
+spi:
+  clk_pin: GPIO04
+  miso_pin: GPIO05
+  mosi_pin: GPIO06
+
+pn532_spi:
+  cs_pin: GPIO07
+  update_interval: 1s
+  on_tag:
+    then:
+      - logger.log:
+          format: "Tag Scanned: %s"
+          args: ["x.c_str()"]
+          level: INFO
+          tag: CARD
+      - text_sensor.template.publish:
+          id: active_tag
+          state: !lambda 'return x;'
+  on_tag_removed:
+    then:
+      - logger.log:
+          format: "Tag Removed: %s"
+          args: ["x.c_str()"]
+          level: INFO
+          tag: CARD
+      - text_sensor.template.publish:
+          id: active_tag
+          state: ''
+
+text_sensor:
+  - platform: template
+    name: "Active Tag"
+    id: active_tag

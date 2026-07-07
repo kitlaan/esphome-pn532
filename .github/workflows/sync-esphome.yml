@@ -1,0 +1,98 @@
+# Button-triggered sync of the pristine `upstream` branch to the latest stable
+# esphome release, then rebase `main` onto it and, if it rebases cleanly and
+# compiles, force-push the result and tag it. Runs only when you click "Run
+# workflow" (no schedule). All the real work lives in scripts/sync-upstream.sh
+# so this matches exactly what you'd run locally; the workflow just adds the
+# push + tag + failure-issue that CI needs.
+name: Sync esphome
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "esphome ref to sync to (blank = latest stable release)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: sync-esphome
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0        # full history for the rebase
+          fetch-tags: true      # existing release tags, for the next-rev calc
+
+      - name: Create local upstream branch
+        run: git fetch origin upstream:upstream
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Cache esphome toolchain
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/esphome-pn532
+          key: esphome-toolchain-${{ inputs.ref || 'latest' }}
+          restore-keys: |
+            esphome-toolchain-
+
+      - name: Sync upstream, rebase main, build gate
+        env:
+          REF: ${{ inputs.ref }}
+        run: |
+          # Pass REF only when set; no arg => the script picks the latest stable tag.
+          if [ -n "$REF" ]; then
+            ./scripts/sync-upstream.sh "$REF"
+          else
+            ./scripts/sync-upstream.sh
+          fi
+
+      # The steps below run only if the sync step succeeded (default step
+      # semantics), i.e. clean rebase + green build. On failure they are skipped
+      # and the issue step fires instead. main is only ever moved here.
+      - name: Push upstream and main
+        run: |
+          git push origin upstream:upstream
+          git push --force-with-lease origin main:main
+
+      - name: Tag the release
+        # Tag here rather than relying on auto-tag.yml: a push made with
+        # GITHUB_TOKEN does not trigger other workflows, so the on-push auto-tag
+        # would never see this force-push. tag-release.sh is idempotent.
+        run: ./scripts/tag-release.sh --push
+
+      - name: Open an issue on failure
+        if: failure()
+        uses: actions/github-script@v9
+        env:
+          REF: ${{ inputs.ref }}
+        with:
+          script: |
+            const ref = process.env.REF || 'latest stable';
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `esphome sync failed (${ref})`,
+              body: [
+                'The **Sync esphome** workflow failed — most likely a rebase',
+                'conflict or a build-gate failure. `main` was not changed.',
+                '',
+                'Resolve it locally by running `scripts/sync-upstream.sh`',
+                '(it will pause a `rebase-upstream` branch on conflict), or',
+                'inspect the run logs:',
+                '',
+                `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              ].join('\n'),
+            });
